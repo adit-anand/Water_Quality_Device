@@ -1,0 +1,945 @@
+{\rtf1\ansi\deff0\nouicompat{\fonttbl{\f0\fnil\fcharset0 Courier New;}}
+{\*\generator Riched20 10.0.16299}\viewkind4\uc1 
+\pard\f0\fs22\lang1033\par
+#include <OneWire.h>\par
+#include <DallasTemperature.h>\par
+#include <SoftwareSerial.h>\par
+#include <NewPing.h>\par
+#define SensorPin A2            //pH meter Analog output to Arduino Analog Input 0\par
+#define Offset 0.00            //deviation compensate\par
+unsigned long int avgValue;     //Store the average value of the sensor feedback\par
+\par
+#define TRIGGER_PIN  23  // Arduino pin tied to trigger pin on ping sensor.\par
+#define ECHO_PIN     22  // Arduino pin tied to echo pin on ping sensor.\par
+#define MAX_DISTANCE 200 // Maximum distance we want to ping for (in centimeters). Maximum sensor distance is rated at 400-500cm.\par
+\par
+NewPing sonar(TRIGGER_PIN, ECHO_PIN, MAX_DISTANCE); // NewPing setup of pins and maximum distance.\par
+\par
+unsigned int pingSpeed = 50; // How frequently are we going to send out a ping (in milliseconds). 50ms would be 20 times a second.\par
+unsigned long pingTimer;     // Holds the next ping time.\par
+\par
+// Data wire is plugged into pin 2 on the Arduino\par
+#define ONE_WIRE_BUS 6\par
+\par
+SoftwareSerial mySerial(7, 8);\par
+\par
+// Setup a oneWire instance to communicate with any OneWire devices (not just Maxim/Dallas temperature ICs)\par
+OneWire oneWire(ONE_WIRE_BUS);\par
+\par
+// Pass our oneWire reference to Dallas Temperature. \par
+DallasTemperature sensors(&oneWire);\par
+\par
+#include <LiquidCrystal.h>\par
+LiquidCrystal lcd(12, 11, 5, 4, 3, 2);\par
+\par
+//const int pingPin =22;\par
+int sensorPin = A0;\par
+int blueled = 13;\par
+int redled = 24;\par
+int greenled = 25;\par
+int tempblueled = 32;\par
+int tempredled = 33;\par
+int tempgreenled = 34;\par
+int levblueled = 35;\par
+int levredled = 36;\par
+int levgreenled = 37;\par
+int turbblueled = 38;\par
+int turbredled = 39;\par
+int turbgreenled = 40;\par
+int buzzer = 31;\par
+float phValue;\par
+float temperatureC;\par
+long duration, cm;\par
+\par
+void setup(void)\par
+\{\par
+  // start serial port\par
+  Serial.begin(9600);\par
+  pingTimer = millis(); // Start now.\par
+  // Start up the library\par
+  sensors.begin(); // IC Default 9 bit. If you have troubles consider upping it 12. Ups the delay giving the IC more time to process the temperature measurement\par
+  lcd.begin(16, 2); //initilise lcd with num of coloums 16 ,by row 2.\par
+  lcd.clear(); //clears lcd just incase there is anytin been displayed\par
+  pinMode(blueled, OUTPUT);\par
+  pinMode(redled, OUTPUT);\par
+  pinMode(greenled, OUTPUT);\par
+  pinMode(tempblueled, OUTPUT);\par
+  pinMode(tempredled, OUTPUT);\par
+  pinMode(tempgreenled, OUTPUT);\par
+  pinMode(levblueled, OUTPUT);\par
+  pinMode(levredled, OUTPUT);\par
+  pinMode(levgreenled, OUTPUT);\par
+  pinMode(turbblueled, OUTPUT);\par
+  pinMode(turbredled, OUTPUT);\par
+  pinMode(turbgreenled, OUTPUT);\par
+  pinMode(buzzer, OUTPUT);\par
+    digitalWrite(buzzer, LOW);\par
+  //initialization();\par
+\}\par
+\par
+void loop() \{\par
+  sensors.requestTemperatures(); // Send the command to get temperature\par
+  Serial.println(sensors.getTempCByIndex(0));\par
+    int reading = analogRead(sensorPin);  \par
+\par
+  // converting that reading to voltage, \par
+  float voltage = reading * 5.0;\par
+  voltage /= 1024.0; \par
+\par
+  // now print out the temperature\par
+  float temperatureC = (voltage - 0.5) * 100 ;\par
+  PH();\par
+    digitalWrite(blueled, LOW);\par
+  digitalWrite(redled, LOW);\par
+  digitalWrite(greenled, LOW);\par
+  temperature ();\par
+  digitalWrite(tempblueled, LOW);\par
+  digitalWrite(tempredled, LOW);\par
+  digitalWrite(tempgreenled, LOW);\par
+  Water_level();\par
+      digitalWrite(levblueled, LOW);\par
+  digitalWrite(levredled, LOW);\par
+  digitalWrite(levgreenled, LOW);\par
+  turbidity();\par
+   digitalWrite(turbblueled, LOW);\par
+  digitalWrite(turbredled, LOW);\par
+  digitalWrite(turbgreenled, LOW);\par
+  send_sms();\par
+  delay(4000);\par
+  send_sms1();\par
+    digitalWrite(greenled, LOW);\par
+  digitalWrite(tempgreenled, LOW);\par
+  digitalWrite(levgreenled, LOW);\par
+  digitalWrite(turbgreenled, LOW); \par
+  delay(8000);\par
+\}\par
+\par
+\par
+\par
+//////////////////////////////////////////////////////////// FUNCTIONS ////////////////////////////////////////////////////////////////////\par
+\par
+void PH()\{\par
+  Serial.println(" ");\par
+  lcd.clear( );\par
+  digitalWrite(blueled, LOW);\par
+  digitalWrite(greenled, LOW);\par
+  digitalWrite(redled, LOW);\par
+  digitalWrite(buzzer, LOW);\par
+  lcd.setCursor(0,0);//set cursor (colum by row) indexing from 0\par
+  lcd.print("TAKING READINGS");\par
+  lcd.setCursor(1,1);\par
+  lcd.print("FROM PH SENSOR");\par
+  Serial.println("Taking Readings from PH Sensor");\par
+  PHblink();\par
+  int buf[10];                //buffer for read analog\par
+  for(int i=0;i<10;i++)       //Get 10 sample value from the sensor for smooth the value\par
+  \{\par
+    buf[i]=analogRead(SensorPin);\par
+    delay(10);\par
+  \}\par
+  for(int i=0;i<9;i++)        //sort the analog from small to large\par
+  \{\par
+    for(int j=i+1;j<10;j++)\par
+    \{\par
+      if(buf[i]>buf[j])\par
+      \{\par
+        int temp=buf[i];\par
+        buf[i]=buf[j];\par
+        buf[j]=temp;\par
+      \}\par
+    \}\par
+  \}\par
+  avgValue=0;\par
+  for(int i=2;i<8;i++)                      //take the average value of 6 center sample\par
+    avgValue+=buf[i];\par
+  float phValue=(float)avgValue*3.8/1030/6; //convert the analog into millivolt\par
+  phValue=3.3*phValue+Offset;                      //convert the millivolt into pH value\par
+  Serial.print("pH:"); \par
+  Serial.print(phValue,2);\par
+  Serial.println(" ");\par
+\par
+  if(phValue >= 7.30)\{\par
+    lcd.clear();\par
+    digitalWrite(blueled, LOW);\par
+    digitalWrite(greenled, LOW);\par
+    digitalWrite(redled, HIGH);\par
+    digitalWrite(buzzer, HIGH);\par
+    lcd.setCursor(1,0);//set cursor (colum by row) indexing from 0\par
+    lcd.print("PH VALUE:");\par
+    lcd.setCursor(10,0);\par
+    lcd.print(phValue);\par
+    lcd.setCursor(0,1);\par
+    Serial.print("PH VALUE: ");\par
+    Serial.println(phValue); \par
+    lcd.setCursor(0,1);//set cursor (colum by row) indexing from 0\par
+    lcd.print("ALKALINITY HIGH");\par
+    Serial.println("Water Alkalinity high");\par
+    delay(3000);\par
+   \}\par
+\par
+  if(phValue >= 6.90 && phValue <= 7.19)\{\par
+    digitalWrite(blueled, HIGH);\par
+    digitalWrite(greenled,LOW);\par
+    digitalWrite(redled, LOW);\par
+    digitalWrite(buzzer, LOW);\par
+    lcd.clear();\par
+    lcd.setCursor(1,0);//set cursor (colum by row) indexing from 0\par
+    lcd.print("PH VALUE:");\par
+    lcd.setCursor(10,0);\par
+    lcd.print(phValue);\par
+    lcd.setCursor(0,1);\par
+    Serial.print("PH VALUE: ");\par
+    Serial.println(phValue); \par
+    lcd.setCursor(1,1);//set cursor (colum by row) indexing from 0\par
+    lcd.print("WATER IS SAFE");\par
+    Serial.println("Water Is  neutral (safe)");\par
+  \}\par
+\par
+  if(phValue < 6.89)\{\par
+    lcd.clear();\par
+    digitalWrite(blueled, LOW);\par
+    digitalWrite(greenled, LOW);\par
+    digitalWrite(redled, HIGH);\par
+    digitalWrite(buzzer, HIGH);\par
+    lcd.setCursor(1,0);//set cursor (colum by row) indexing from 0\par
+    lcd.print("PH VALUE:");\par
+    lcd.setCursor(10,0);\par
+    lcd.print(phValue);\par
+    lcd.setCursor(0,1);\par
+    Serial.print("PH VALUE: ");\par
+    Serial.println(phValue); \par
+    lcd.setCursor(2,1);//set cursor (colum by row) indexing from 0\par
+    lcd.print("ACIDITY HIGH");\par
+    Serial.println("Water Acidity High");\par
+    delay(3000);\par
+   \}\par
+   \par
+  delay(8000);\par
+\}\par
+\par
+\par
+void temperature ()\{\par
+  Serial.println(" ");\par
+  lcd.clear( );\par
+  lcd.setCursor(0,0);//set cursor (colum by row) indexing from 0\par
+  lcd.print("TAKING READINGS");\par
+  lcd.setCursor(0,1);\par
+  lcd.print("FROM TEMP SENSOR");\par
+  Serial.println("Taking Readings from Temperature Sensor");\par
+  TEMPblink();\par
+  temp_check_surr();\par
+  delay(4000);\par
+  temp_check_water();\par
+\}\par
+\par
+\par
+void temp_check_surr()\{\par
+  digitalWrite(tempblueled, LOW);\par
+  digitalWrite(tempgreenled, LOW);\par
+  digitalWrite(tempredled, LOW);\par
+  digitalWrite(buzzer, LOW);\par
+  int reading = analogRead(sensorPin);  \par
+\par
+  // converting that reading to voltage, \par
+  float voltage = reading * 5.0;\par
+  voltage /= 1024.0; \par
+\par
+  // now print out the temperature\par
+  float temperatureC = (voltage - 0.5) * 100 ;  //converting from 10 mv per degree wit 500 mV offset\par
+  //to degrees ((voltage - 500mV) times 100)\par
+  lcd.clear();\par
+  Serial.print("Surrounding Temperature: ");\par
+  Serial.println(temperatureC);\par
+\par
+  if(temperatureC > 50)\{\par
+    digitalWrite(tempblueled, LOW);\par
+    digitalWrite(tempgreenled, LOW);\par
+    digitalWrite(tempredled, HIGH);\par
+    digitalWrite(buzzer, HIGH);\par
+    lcd.setCursor(0,0);//set cursor (colum by row) indexing from 0\par
+    lcd.print("SUR TEMP:");\par
+    lcd.setCursor(9,0);\par
+    lcd.print(temperatureC);\par
+    lcd.setCursor(14,0);\par
+    lcd.print("*C");\par
+    lcd.setCursor(0,1);\par
+    Serial.print("Surrounding Temperature: ");\par
+    Serial.print(temperatureC); \par
+    Serial.println(" degree C");\par
+    lcd.setCursor(0,1);//set cursor (colum by row) indexing from 0\par
+    lcd.print("SURR TEMP HIGH");\par
+    Serial.println("Surrounding Temperature high");\par
+    delay(3000);\par
+   \}\par
+\par
+  if(temperatureC >= 10 && temperatureC <= 50)\{\par
+    digitalWrite(tempblueled, HIGH);\par
+    digitalWrite(tempgreenled,LOW);\par
+    digitalWrite(tempredled, LOW);\par
+    digitalWrite(buzzer, LOW);\par
+    lcd.setCursor(0,0);//set cursor (colum by row) indexing from 0\par
+    lcd.print("SUR TEMP:");\par
+    lcd.setCursor(9,0);\par
+    lcd.print(temperatureC);\par
+    lcd.setCursor(14,0);\par
+    lcd.print("*C");\par
+    lcd.setCursor(0,1);\par
+    Serial.print("Surrounding Temperature: ");\par
+    Serial.print(temperatureC); \par
+    Serial.println(" degree C");\par
+    lcd.setCursor(0,1);//set cursor (colum by row) indexing from 0\par
+    lcd.print("SURR TEMP NORMAL");\par
+    Serial.println("Surrounding Temperature normal");\par
+  \}\par
+\par
+  if(temperatureC < 10)\{\par
+    digitalWrite(tempblueled, LOW);\par
+    digitalWrite(tempgreenled, LOW);\par
+    digitalWrite(tempredled, HIGH);\par
+    digitalWrite(buzzer, HIGH);\par
+    lcd.setCursor(0,0);//set cursor (colum by row) indexing from 0\par
+    lcd.print("SUR TEMP:");\par
+    lcd.setCursor(9,0);\par
+    lcd.print(temperatureC);\par
+    lcd.setCursor(14,0);\par
+    lcd.print("*C");\par
+    lcd.setCursor(0,1);\par
+    Serial.print("Surrounding Temperature: ");\par
+    Serial.print(temperatureC); \par
+    Serial.println(" degree C");\par
+    lcd.setCursor(0,1);//set cursor (colum by row) indexing from 0\par
+    lcd.print("SURR TEMP LOW");\par
+    Serial.println("Surrounding Temperature low");\par
+    delay(3000);\par
+   \}\par
+  delay(8000);\par
+\}\par
+\par
+\par
+void temp_check_water()\{\par
+  lcd.clear();\par
+  digitalWrite(tempblueled, LOW);\par
+  digitalWrite(tempgreenled, LOW);\par
+  digitalWrite(tempredled, LOW);\par
+  digitalWrite(buzzer, LOW);\par
+  sensors.requestTemperatures(); // Send the command to get temperature\par
+  Serial.print("Water Temperature: ");\par
+  Serial.println(sensors.getTempCByIndex(0));\par
+\par
+  if(sensors.getTempCByIndex(0) > 40)\{\par
+    digitalWrite(tempblueled, LOW);\par
+    digitalWrite(tempgreenled, LOW);\par
+    digitalWrite(tempredled, HIGH);\par
+    digitalWrite(buzzer, HIGH);\par
+    lcd.setCursor(0,0);//set cursor (colum by row) indexing from 0\par
+    lcd.print("WAT TEMP:");\par
+    lcd.setCursor(9,0);\par
+    lcd.print(sensors.getTempCByIndex(0));\par
+    lcd.setCursor(14,0);\par
+    lcd.print("*C");\par
+    lcd.setCursor(0,1);\par
+    Serial.print("Water Temperature: ");\par
+    Serial.print(sensors.getTempCByIndex(0)); \par
+    Serial.println(" degree C");\par
+    lcd.setCursor(0,1);//set cursor (colum by row) indexing from 0\par
+    lcd.print("WATER TEMP HIGH");\par
+    Serial.println("Water Temperature high");\par
+    delay(3000);\par
+  \}\par
+\par
+  if(sensors.getTempCByIndex(0) >= 15 && sensors.getTempCByIndex(0) <= 40)\{\par
+    digitalWrite(tempblueled, HIGH);\par
+    digitalWrite(tempgreenled,LOW);\par
+    digitalWrite(tempredled, LOW);\par
+    digitalWrite(buzzer, LOW);\par
+    lcd.setCursor(0,0);//set cursor (colum by row) indexing from 0\par
+    lcd.print("WAT TEMP:");\par
+    lcd.setCursor(9,0);\par
+    lcd.print(sensors.getTempCByIndex(0));\par
+    lcd.setCursor(14,0);\par
+    lcd.print("*C");\par
+    lcd.setCursor(0,1);\par
+    Serial.print("Water Temperature: ");\par
+    Serial.print(sensors.getTempCByIndex(0)); \par
+    Serial.println(" degree C");\par
+    lcd.setCursor(0,1);//set cursor (colum by row) indexing from 0\par
+    lcd.print("WATER TEMP NORMAL");\par
+    Serial.println("Water Temperature normal");\par
+  \}\par
+\par
+  if(sensors.getTempCByIndex(0) < 15)\{\par
+    digitalWrite(tempblueled, LOW);\par
+    digitalWrite(tempgreenled, LOW);\par
+    digitalWrite(tempredled, HIGH);\par
+    digitalWrite(buzzer, HIGH);\par
+    lcd.setCursor(0,0);//set cursor (colum by row) indexing from 0\par
+    lcd.print("WAT TEMP:");\par
+    lcd.setCursor(9,0);\par
+    lcd.print(sensors.getTempCByIndex(0));\par
+    lcd.setCursor(14,0);\par
+    lcd.print("*C");\par
+    lcd.setCursor(0,1);\par
+    Serial.print("Water Temperature: ");\par
+    Serial.print(sensors.getTempCByIndex(0)); \par
+    Serial.println(" degree C");\par
+    lcd.setCursor(0,1);//set cursor (colum by row) indexing from 0\par
+    lcd.print("WATER TEMP LOW");\par
+    Serial.println("Water Temperature low");\par
+    delay(3000);\par
+  \}\par
+  delay(8000);\par
+\}\par
+\par
+\par
+void Water_level() \{\par
+    Serial.println(" ");\par
+  digitalWrite(levblueled, LOW);\par
+  digitalWrite(levgreenled, LOW);\par
+  digitalWrite(levredled, LOW);\par
+  digitalWrite(buzzer, LOW);\par
+  lcd.clear( );\par
+  lcd.setCursor(2,0);//set cursor (colum by row) indexing from 0\par
+  lcd.print("READINGS FROM");\par
+  lcd.setCursor(0,1);\par
+  lcd.print("WATER LEVEL SENS");\par
+  Serial.println("Taking Readings from Water Level Sensor");\par
+  LEVblink();\par
+  level_check();\par
+  delay(8000);\par
+\}\par
+\par
+\par
+void level_check()\{\par
+  digitalWrite(levblueled, LOW);\par
+  digitalWrite(levgreenled, LOW);\par
+  digitalWrite(levredled, LOW);\par
+  digitalWrite(buzzer, LOW);\par
+  \par
+    // Notice how there's no delays in this sketch to allow you to do other processing in-line while doing distance pings.\par
+  if (millis() >= pingTimer) \{   // pingSpeed milliseconds since last ping, do another ping.\par
+    pingTimer += pingSpeed;      // Set the next ping time.\par
+    sonar.ping_timer(echoCheck); // Send out the ping, calls "echoCheck" function every 24uS where you can check the ping status.\par
+//delay(1000);  \par
+\}\par
+\}\par
+\par
+void echoCheck() \{ // Timer2 interrupt calls this function every 24uS where you can check the ping status.\par
+  // Don't do anything here!\par
+  if (sonar.check_timer()) \{ // This is how you check to see if the ping was received.\par
+   if(sonar.ping_result / US_ROUNDTRIP_CM > 7)\{\par
+    digitalWrite(levblueled, LOW);\par
+    digitalWrite(levgreenled, LOW);\par
+    digitalWrite(levredled, HIGH);\par
+    digitalWrite(buzzer, HIGH);\par
+    lcd.clear( );\par
+    lcd.setCursor(0,0);//set cursor (colum by row) indexing from 0\par
+    lcd.print("WATER LEVEL:");\par
+    lcd.setCursor(12,0);\par
+    lcd.print(sonar.ping_result / US_ROUNDTRIP_CM);\par
+    lcd.setCursor(14,0);\par
+    lcd.print("cm");\par
+    lcd.setCursor(0,1);\par
+    Serial.print("Water Level: ");\par
+    Serial.print(sonar.ping_result / US_ROUNDTRIP_CM); \par
+    Serial.println("cm");\par
+    lcd.setCursor(0,1);//set cursor (colum by row) indexing from 0\par
+    lcd.print("WATER LEVEL LOW");\par
+    Serial.println("Water Level low");\par
+    delay(3000);\par
+   \par
+  \}\par
+\par
+  if(sonar.ping_result / US_ROUNDTRIP_CM >= 5 && sonar.ping_result / US_ROUNDTRIP_CM <= 7)\{\par
+      digitalWrite(levblueled, HIGH);\par
+  digitalWrite(levgreenled, LOW);\par
+  digitalWrite(levredled, LOW);\par
+  digitalWrite(buzzer, LOW);\par
+    lcd.clear( );\par
+    lcd.setCursor(0,0);//set cursor (colum by row) indexing from 0\par
+    lcd.print("WATER LEVEL:");\par
+    lcd.setCursor(12,0);\par
+    lcd.print(sonar.ping_result / US_ROUNDTRIP_CM);\par
+    lcd.setCursor(14,0);\par
+    lcd.print("cm");\par
+    lcd.setCursor(0,1);\par
+    Serial.print("Water Level: ");\par
+    Serial.print(sonar.ping_result / US_ROUNDTRIP_CM); \par
+    Serial.println("cm");\par
+    lcd.setCursor(0,1);//set cursor (colum by row) indexing from 0\par
+    lcd.print("WATER LEVEL NORMAL");\par
+    Serial.println("Water Level normal");\par
+  \}\par
+  \par
+  if(sonar.ping_result / US_ROUNDTRIP_CM < 5)\{\par
+    digitalWrite(levblueled, LOW);\par
+    digitalWrite(levgreenled, LOW);\par
+    digitalWrite(levredled, HIGH);\par
+    digitalWrite(buzzer, HIGH);\par
+    lcd.clear( );\par
+    lcd.setCursor(0,0);//set cursor (colum by row) indexing from 0\par
+    lcd.print("WATER LEVEL:");\par
+    lcd.setCursor(12,0);\par
+    lcd.print(sonar.ping_result / US_ROUNDTRIP_CM);\par
+    lcd.setCursor(14,0);\par
+    lcd.print("cm");\par
+    lcd.setCursor(0,1);\par
+    Serial.print("Water Level: ");\par
+    Serial.print(sonar.ping_result / US_ROUNDTRIP_CM); \par
+    Serial.println("cm");\par
+    lcd.setCursor(0,1);//set cursor (colum by row) indexing from 0\par
+    lcd.print("WATER LEVEL HIGH");\par
+    Serial.println("Water Level high");\par
+    delay(2000);\par
+       \}\par
+  \}\par
+ \}\par
+\par
+/*long microsecondsToCentimeters(long microseconds)\par
+\{\par
+  return microseconds / 29 / 2;\par
+\}\par
+*/\par
+\par
+void turbidity() \{\par
+  Serial.println(" ");\par
+  digitalWrite(turbblueled, LOW);\par
+  digitalWrite(turbgreenled, LOW);\par
+  digitalWrite(turbredled, LOW);\par
+  digitalWrite(buzzer, LOW);\par
+  lcd.clear( );\par
+  lcd.setCursor(1,0);//set cursor (colum by row) indexing from 0\par
+  lcd.print("READINGS FROM");\par
+  lcd.setCursor(0,1);\par
+  lcd.print("TURBIDITY SENSOR");\par
+  Serial.println("Taking Readings from turbidity Sensor");\par
+  TURBblink();\par
+  int turbidityValue = analogRead(A1);\par
+  float turbidityV = turbidityValue/100;\par
+  Serial.print("Turbidity level: ");\par
+  Serial.println(turbidityV);\par
+\par
+  if( turbidityV > 9)\{\par
+    digitalWrite(turbblueled, LOW);\par
+    digitalWrite(turbgreenled, LOW);\par
+    digitalWrite(turbredled, HIGH);\par
+    digitalWrite(buzzer, HIGH);\par
+    lcd.clear( );\par
+    lcd.setCursor(0,0);//set cursor (colum by row) indexing from 0\par
+    lcd.print("TURBI LEV:");\par
+    lcd.setCursor(11,0);\par
+    lcd.print(turbidityV);\par
+    lcd.setCursor(14,0);\par
+    lcd.print("NTU");\par
+    lcd.setCursor(0,1);\par
+    Serial.print("Turbidity Level: ");\par
+    Serial.print(turbidityV); \par
+    Serial.println("NTU");\par
+    lcd.setCursor(0,1);//set cursor (colum by row) indexing from 0\par
+    lcd.print("WATER VERY CLEAN");\par
+    Serial.println("Water Very Clean ");\par
+    delay(3000);\par
+  \}\par
+\par
+  if( turbidityV >= 6 && turbidityValue/100 <= 9 )\{\par
+    digitalWrite(turbblueled, HIGH);\par
+    digitalWrite(turbgreenled, LOW);\par
+    digitalWrite(turbredled, LOW);\par
+    digitalWrite(buzzer, LOW);\par
+    lcd.clear( );\par
+    lcd.setCursor(0,0);//set cursor (colum by row) indexing from 0\par
+    lcd.print("TURBI LEV:");\par
+    lcd.setCursor(10,0);\par
+    lcd.print(turbidityV);\par
+    lcd.setCursor(13,0);\par
+    lcd.print("NTU");\par
+    lcd.setCursor(0,1);\par
+    Serial.print("Turbidity Level: ");\par
+    Serial.print(turbidityV); \par
+    Serial.println("NTU");\par
+    lcd.setCursor(0,1);//set cursor (colum by row) indexing from 0\par
+    lcd.print("WATER NORM CLEAN");\par
+    Serial.println("Water Clean ");\par
+  \}\par
+\par
+  if( turbidityV < 6)\{\par
+    digitalWrite(turbblueled, LOW);\par
+    digitalWrite(turbgreenled, LOW);\par
+    digitalWrite(turbredled, HIGH);\par
+    digitalWrite(buzzer, HIGH);\par
+    lcd.clear( );\par
+    lcd.setCursor(0,0);//set cursor (colum by row) indexing from 0\par
+    lcd.print("TURBI LEV:");\par
+    lcd.setCursor(11,0);\par
+    lcd.print(turbidityV);\par
+    lcd.setCursor(14,0);\par
+    lcd.print("NTU");\par
+    lcd.setCursor(0,1);\par
+    Serial.print("Turbidity Level: ");\par
+    Serial.print(turbidityV); \par
+    Serial.println("NTU");\par
+    lcd.setCursor(0,1);//set cursor (colum by row) indexing from 0\par
+    lcd.print("WATER VERY DIRTY");\par
+    Serial.println("Water Very Dirty ");\par
+    delay(3000);\par
+   \}\par
+  delay (8000);\par
+\}\par
+\par
+\par
+void initialization()\{\par
+  lcd.setCursor(0,0);//set cursor (colum by row) indexing from 0\par
+  lcd.print("INITIALIZING ALL");\par
+  lcd.setCursor(0,1);\par
+  lcd.print("PARAMETERS");\par
+  delay(3000);\par
+  lcd.setCursor(0,1);\par
+  lcd.print("PARAMETERS.");\par
+  delay(3000);\par
+  lcd.setCursor(0,1);\par
+  lcd.print("PARAMETERS..");\par
+  delay(3000);\par
+  lcd.setCursor(0,1);\par
+  lcd.print("PARAMETERS...");\par
+  delay(3000);\par
+  lcd.setCursor(0,1);\par
+  lcd.print("PARAMETERS....");\par
+  delay(3000);\par
+  lcd.setCursor(0,1);\par
+  lcd.print("PARAMETERS.....");\par
+  delay(3000);\par
+  lcd.setCursor(0,1);\par
+  lcd.print("PARAMETERS......");\par
+  Serial.println("Initializing All Parameters........");\par
+  delay(8000);\par
+  Serial.println("Initializing Done.");\par
+  lcd.clear();\par
+  lcd.setCursor(1,0);\par
+  lcd.print("INITIALIZATION");\par
+  lcd.setCursor(6,1);\par
+  lcd.print("DONE  ");\par
+  delay(2000);\par
+\}\par
+\par
+//////////////////////////////////////////////////////// SMS FUNCTION /////////////////////////////////////////////////////////////////////\par
+\par
+\par
+void send_sms()\{\par
+  lcd.clear();\par
+  lcd.setCursor(2,0);//set cursor (colum by row) indexing from 0\par
+  lcd.print("ATTENTION!!! ");\par
+  lcd.setCursor(2,1);\par
+  lcd.print("SENDING SMS ");\par
+  String temp; \par
+  String lev;\par
+  String phm;\par
+  String turb;\par
+  int turbidityValue = analogRead(A1);\par
+  float turbidityV = turbidityValue/100;\par
+  \par
+  int buf[10];                //buffer for read analog\par
+  for(int i=0;i<10;i++)       //Get 10 sample value from the sensor for smooth the value\par
+  \{\par
+    buf[i]=analogRead(SensorPin);\par
+    delay(10);\par
+  \}\par
+  for(int i=0;i<9;i++)        //sort the analog from small to large\par
+  \{\par
+    for(int j=i+1;j<10;j++)\par
+    \{\par
+      if(buf[i]>buf[j])\par
+      \{\par
+        int temp=buf[i];\par
+        buf[i]=buf[j];\par
+        buf[j]=temp;\par
+      \}\par
+    \}\par
+  \}\par
+  avgValue=0;\par
+  for(int i=2;i<8;i++)                      //take the average value of 6 center sample\par
+    avgValue+=buf[i];\par
+  float phValue=(float)avgValue*3.8/1030/6; //convert the analog into millivolt\par
+  phValue=3.3*phValue+Offset;        \par
+  \par
+    if(sensors.getTempCByIndex(0) > 40)\{\par
+    temp = String("HIGH");\par
+    \}\par
+    if(sensors.getTempCByIndex(0) >= 10 && sensors.getTempCByIndex(0) <= 40)\{\par
+    temp = String("NORMAL");\par
+    \}\par
+    if(sensors.getTempCByIndex(0) < 10)\{\par
+     temp = String("LOW"); \par
+    \}\par
+       \par
+    if(sonar.ping_result / US_ROUNDTRIP_CM > 8)\{\par
+    lev = String("LOW");\par
+    \}\par
+    if(sonar.ping_result / US_ROUNDTRIP_CM >= 5 && sonar.ping_result / US_ROUNDTRIP_CM <= 8)\{\par
+    lev = String("NORMAL");\par
+    \}\par
+    if(sonar.ping_result / US_ROUNDTRIP_CM < 5)\{\par
+    lev = String("HIGH"); \par
+    \}\par
+    \par
+    if(phValue >= 7.30)\{\par
+    phm = String("ALKALINE");\par
+    \}\par
+    if(phValue >= 6.90 && phValue <= 7.19)\{\par
+    phm = String("NORMAL");\par
+    \}\par
+    if(phValue < 6.89)\{\par
+     phm = String("ACIDIC"); \par
+    \}\par
+\par
+    if(turbidityV >= 6 && turbidityValue/100 <= 9)\{\par
+    turb = String("CLEAN");\par
+    \}\par
+    if(turbidityV < 6)\{\par
+    turb = String("DIRTY"); \par
+    \}\par
+    \par
+  mySerial.begin(19200);  //Default serial port setting for the GPRS modem is 19200bps 8-N-1\par
+  mySerial.print("\\r");\par
+  digitalWrite(buzzer, LOW);\par
+  digitalWrite(blueled, LOW);\par
+  digitalWrite(greenled, LOW);\par
+  digitalWrite(redled, LOW);\par
+  delay(1000);                    //wait for a second while the modem sends an "OK"\par
+  mySerial.print("AT+CMGF=1\\r");    //Because we want to send the SMS in text mode\par
+  delay(1000);\par
+  mySerial.print("AT+CMGS=\\"+233540518223\\"\\r");    //Start accepting the text for the message\par
+  delay(1000);\par
+  mySerial.print(temp);\par
+  mySerial.print(" \\r");\par
+  mySerial.print("WATER TEMPERATURE= \\r");   //The text for the message\par
+  mySerial.print(sensors.getTempCByIndex(0));\par
+  mySerial.print("*C\\r");\par
+  mySerial.println("\\r");\par
+  mySerial.print(lev);\par
+  mySerial.print(" \\r");\par
+  mySerial.print("WATER LEVEL= \\r");   //The text for the message\par
+  mySerial.print(sonar.ping_result / US_ROUNDTRIP_CM);\par
+  mySerial.print("cm\\r");\par
+  mySerial.println("\\r");\par
+  mySerial.print(phm);\par
+  mySerial.print(" \\r");\par
+  mySerial.print("WATER PH VALUE= \\r");   //The text for the message\par
+  mySerial.print(phValue);\par
+  mySerial.println("\\r");\par
+  mySerial.print(turb);\par
+  mySerial.print(" \\r");\par
+  mySerial.print("WATER TURBIDITY= \\r");   //The text for the message\par
+  mySerial.print(turbidityV);\par
+  mySerial.print("NBT\\r");\par
+  \par
+  digitalWrite(greenled, HIGH);\par
+  digitalWrite(tempgreenled, HIGH);\par
+  digitalWrite(levgreenled, HIGH);\par
+  digitalWrite(turbgreenled, HIGH);\par
+  delay(3000);\par
+  /*lcd.clear();\par
+  lcd.setCursor(5,0);//set cursor (colum by row) indexing from 0\par
+  lcd.print("SMS SENT ");\par
+  lcd.setCursor(2,1);\par
+  lcd.print("SUCCESSFULLY ");*/\par
+  mySerial.write(0x1A);  //Equivalent to sending Ctrl+Z \par
+\}\par
+\par
+void send_sms1()\{\par
+  lcd.clear();\par
+  lcd.setCursor(2,0);//set cursor (colum by row) indexing from 0\par
+  lcd.print("ATTENTION!!! ");\par
+  lcd.setCursor(2,1);\par
+  lcd.print("SENDING SMS ");\par
+  String temp; \par
+  String lev;\par
+  String phm;\par
+  String turb;\par
+  int turbidityValue = analogRead(A1);\par
+  float turbidityV = turbidityValue/100;\par
+  \par
+  int buf[10];                //buffer for read analog\par
+  for(int i=0;i<10;i++)       //Get 10 sample value from the sensor for smooth the value\par
+  \{\par
+    buf[i]=analogRead(SensorPin);\par
+    delay(10);\par
+  \}\par
+  for(int i=0;i<9;i++)        //sort the analog from small to large\par
+  \{\par
+    for(int j=i+1;j<10;j++)\par
+    \{\par
+      if(buf[i]>buf[j])\par
+      \{\par
+        int temp=buf[i];\par
+        buf[i]=buf[j];\par
+        buf[j]=temp;\par
+      \}\par
+    \}\par
+  \}\par
+  avgValue=0;\par
+  for(int i=2;i<8;i++)                      //take the average value of 6 center sample\par
+    avgValue+=buf[i];\par
+  float phValue=(float)avgValue*3.8/1030/6; //convert the analog into millivolt\par
+  phValue=3.3*phValue+Offset;        \par
+  \par
+    if(sensors.getTempCByIndex(0) > 40)\{\par
+    temp = String("HIGH");\par
+    \}\par
+    if(sensors.getTempCByIndex(0) >= 10 && sensors.getTempCByIndex(0) <= 40)\{\par
+    temp = String("NORMAL");\par
+    \}\par
+    if(sensors.getTempCByIndex(0) < 10)\{\par
+     temp = String("LOW"); \par
+    \}\par
+       \par
+    if(sonar.ping_result / US_ROUNDTRIP_CM > 8)\{\par
+    lev = String("LOW");\par
+    \}\par
+    if(sonar.ping_result / US_ROUNDTRIP_CM >= 5 && sonar.ping_result / US_ROUNDTRIP_CM <= 8)\{\par
+    lev = String("NORMAL");\par
+    \}\par
+    if(sonar.ping_result / US_ROUNDTRIP_CM < 5)\{\par
+    lev = String("HIGH"); \par
+    \}\par
+    \par
+    if(phValue >= 7.30)\{\par
+    phm = String("ALKALINE");\par
+    \}\par
+    if(phValue >= 6.90 && phValue <= 7.19)\{\par
+    phm = String("NORMAL");\par
+    \}\par
+    if(phValue < 6.89)\{\par
+     phm = String("ACIDIC"); \par
+    \}\par
+\par
+    if(turbidityV >= 6 && turbidityValue/100 <= 9)\{\par
+    turb = String("CLEAN");\par
+    \}\par
+    if(turbidityV < 6)\{\par
+    turb = String("DIRTY"); \par
+    \}\par
+    \par
+  mySerial.begin(19200);  //Default serial port setting for the GPRS modem is 19200bps 8-N-1\par
+  mySerial.print("\\r");\par
+  digitalWrite(buzzer, LOW);\par
+  digitalWrite(blueled, LOW);\par
+  digitalWrite(greenled, LOW);\par
+  digitalWrite(redled, LOW);\par
+  delay(1000);                    //wait for a second while the modem sends an "OK"\par
+  mySerial.print("AT+CMGF=1\\r");    //Because we want to send the SMS in text mode\par
+  delay(1000);\par
+  mySerial.print("AT+CMGS=\\"+233265188849\\"\\r");    //Start accepting the text for the message\par
+  delay(1000);\par
+  mySerial.print(temp);\par
+  mySerial.print(" \\r");\par
+  mySerial.print("WATER TEMPERATURE= \\r");   //The text for the message\par
+  mySerial.print(sensors.getTempCByIndex(0));\par
+  mySerial.print("*C\\r");\par
+  mySerial.println("\\r");\par
+  mySerial.print(lev);\par
+  mySerial.print(" \\r");\par
+  mySerial.print("WATER LEVEL= \\r");   //The text for the message\par
+  mySerial.print(sonar.ping_result / US_ROUNDTRIP_CM);\par
+  mySerial.print("cm\\r");\par
+  mySerial.println("\\r");\par
+  mySerial.print(phm);\par
+  mySerial.print(" \\r");\par
+  mySerial.print("WATER PH VALUE= \\r");   //The text for the message\par
+  mySerial.print(phValue);\par
+  mySerial.println("\\r");\par
+  mySerial.print(turb);\par
+  mySerial.print(" \\r");\par
+  mySerial.print("WATER TURBIDITY= \\r");   //The text for the message\par
+  mySerial.print(turbidityV);\par
+  mySerial.print("NBT\\r");\par
+  \par
+  digitalWrite(greenled, HIGH);\par
+  digitalWrite(tempgreenled, HIGH);\par
+  digitalWrite(levgreenled, HIGH);\par
+  digitalWrite(turbgreenled, HIGH);\par
+  delay(3000);\par
+  lcd.clear();\par
+  lcd.setCursor(5,0);//set cursor (colum by row) indexing from 0\par
+  lcd.print("SMS SENT ");\par
+  lcd.setCursor(2,1);\par
+  lcd.print("SUCCESSFULLY ");\par
+  mySerial.write(0x1A);  //Equivalent to sending Ctrl+Z \par
+\}\par
+\par
+void PHblink() \{\par
+  digitalWrite(blueled, HIGH); \par
+  delay(1000);               \par
+  digitalWrite(blueled, LOW);\par
+  delay(1000);              \par
+  digitalWrite(blueled, HIGH);  \par
+  delay(1000); \par
+  digitalWrite(blueled, LOW); \par
+  delay(1000); \par
+  digitalWrite(blueled, HIGH); \par
+  delay(1000); \par
+  digitalWrite(blueled, LOW);  \par
+  delay(1000);\par
+   digitalWrite(blueled, HIGH); \par
+  delay(1000); \par
+  digitalWrite(blueled, LOW);  \par
+  delay(1000); \par
+\}\par
+\par
+void TEMPblink() \{\par
+  digitalWrite(tempblueled, HIGH); \par
+  delay(1000);               \par
+  digitalWrite(tempblueled, LOW);\par
+  delay(1000);              \par
+  digitalWrite(tempblueled, HIGH);  \par
+  delay(1000); \par
+  digitalWrite(tempblueled, LOW); \par
+  delay(1000); \par
+  digitalWrite(tempblueled, HIGH); \par
+  delay(1000); \par
+  digitalWrite(tempblueled, LOW);  \par
+  delay(1000);\par
+   digitalWrite(tempblueled, HIGH); \par
+  delay(1000); \par
+  digitalWrite(tempblueled, LOW);  \par
+  delay(1000); \par
+\}\par
+\par
+void LEVblink() \{\par
+  digitalWrite(levblueled, HIGH); \par
+  delay(1000);               \par
+  digitalWrite(levblueled, LOW);\par
+  delay(1000);              \par
+  digitalWrite(levblueled, HIGH);  \par
+  delay(1000); \par
+  digitalWrite(levblueled, LOW); \par
+  delay(1000); \par
+  digitalWrite(levblueled, HIGH); \par
+  delay(1000); \par
+  digitalWrite(levblueled, LOW);  \par
+  delay(1000);\par
+   digitalWrite(levblueled, HIGH); \par
+  delay(1000); \par
+  digitalWrite(levblueled, LOW);  \par
+  delay(1000); \par
+\}\par
+\par
+void TURBblink() \{\par
+  digitalWrite(turbblueled, HIGH); \par
+  delay(1000);               \par
+  digitalWrite(turbblueled, LOW);\par
+  delay(1000);              \par
+  digitalWrite(turbblueled, HIGH);  \par
+  delay(1000); \par
+  digitalWrite(turbblueled, LOW); \par
+  delay(1000); \par
+  digitalWrite(turbblueled, HIGH); \par
+  delay(1000); \par
+  digitalWrite(turbblueled, LOW);  \par
+  delay(1000);\par
+   digitalWrite(turbblueled, HIGH); \par
+  delay(1000); \par
+  digitalWrite(turbblueled, LOW);  \par
+  delay(1000); \par
+\}\par
+\par
+}
+ 
